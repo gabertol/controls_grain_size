@@ -1,0 +1,270 @@
+---
+title: "Controls on grain-size distribution in an ancient sand sea"
+author: "Dr. Gabriel Bertolini, Dr. Adrian Hartley, Dr. Juliana Marques, BSc. Jhenifer Paim"
+date: "2022-11-08"
+format: 
+  html:
+    self-contained:
+      true
+    theme: default
+    toc: true
+    number-sections: true
+editor_options: 
+  chunk_output_type: console
+  
+---
+# Importing libraries
+```{r,message=FALSE,warning=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(mapview)
+library(sf)
+library(provenance)
+library(raster)
+```
+
+# Grain-size distribution
+```{r,message=FALSE,warning=FALSE}
+#1. Importing raw data
+GS <- read.csv("./import_files/GS.csv")
+
+#1.2 Number of samples
+GS %>% group_by(source) %>% summarise(n=n())
+
+#1.3 Maps
+GS %>% st_as_sf(coords=c("Long","Lat"),crs=4326) %>%  mapview()
+
+#1.4 Distribution of grain-size classes by region (Figure 2)
+GS %>% 
+  pivot_longer(cols=phi_1:phi_4,names_to="phi",values_to="values") %>% 
+  mutate(zone=factor(zone,labels=c("North Botucatu Desert","South Botucatu Desert")),
+         phi=factor(phi,labels = c("Coarse Sand","Medium Sand",
+                                   "Fine Sand","Very Fine Sand"))) %>% 
+  group_by(wind_group) %>% 
+  ggplot(aes(fill=phi,x=fct_reorder(sample,Long),y=values))+
+  geom_bar(position="fill", 
+           stat="identity")+
+  scale_fill_brewer(palette = "Set1",direction=-1)+
+  facet_wrap(~wind_group,scales="free")+
+  labs(x=NULL,y= "proportion (%)")+
+  theme(legend.position="bottom",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#1.5 Grain-size metrics by region (Figure 3A-D)
+#1.5.A Mean grain-size (Figure 3A)
+  GS %>% 
+  ggplot(aes(x=gs_mean_mm))+
+  geom_density(alpha=.5,
+               aes(fill=wind_group))+
+  geom_vline(xintercept=c(0.225,0.356,0.299))+
+  scale_fill_brewer(palette = "Set1",direction=-1)+
+  labs(x="Mean grain-size (mm)",fill=NULL)+
+  theme(legend.position = "bottom",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+  #1.5.B Mean sorting (Figure 3B)
+  GS %>% 
+  ggplot(aes(x=gs_sd_um))+
+  geom_density(alpha=.5,
+               aes(fill=wind_group))+
+  geom_vline(xintercept=c(01.6,1.73,1.68))+
+  scale_fill_brewer(palette = "Set1",direction=-1)+
+  labs(fill=NULL,x="Sorting")+
+  theme(legend.position = "bottom",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+ 
+  #1.5.C Mean kurtosis (Figure 3C)
+  GS %>% 
+  ggplot(aes(x=gs_kur_um))+
+  geom_density(alpha=.5,
+               aes(fill=wind_group))+
+  geom_vline(xintercept=c(0.984,0.988,0.986))+
+  scale_fill_brewer(palette = "Set1",direction=-1)+
+   labs(fill=NULL,x="Kurtosis")+
+  theme(legend.position = "bottom",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+  
+  #1.5.D Mean skewness (Figure 3D)
+  GS %>% 
+  ggplot(aes(x=gs_skw_um))+
+  geom_density(alpha=.5,
+               aes(fill=wind_group))+
+  geom_vline(xintercept=c(-0.0876,-0.129,-0.113))+
+  scale_fill_brewer(palette = "Set1",direction=-1)+
+  labs(fill=NULL,x="Skewness")+
+  theme(legend.position = "bottom",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+
+```
+
+# Spatial distribution
+```{r,message=FALSE,warning=FALSE}
+#2 Importing
+shape<-read_sf("./import_files/shape.shp")
+MS<-raster::raster("./import_files/MS.tif") %>%  rasterToPoints(.) %>% as_tibble() %>% dplyr::select(X=x,Y=y,Z=3)
+SD<-raster::raster("./import_files/SD.tif") %>%  rasterToPoints(.) %>% as_tibble() %>% dplyr::select(X=x,Y=y,Z=3)
+KUR<-raster::raster("./import_files/KUR.tif") %>% rasterToPoints(.) %>% as_tibble() %>% dplyr::select(X=x,Y=y,Z=3)
+SKW<-raster::raster("./import_files/SKW.tif")%>%  rasterToPoints(.) %>% as_tibble() %>% dplyr::select(X=x,Y=y,Z=3)
+
+#2.A  Mean grain-size
+ggplot()+
+  geom_raster(data=MS,aes(x=X,y=Y,fill=Z))+
+   colorspace::scale_fill_continuous_sequential(palette="Inferno")+
+  geom_sf(data=shape,fill=NA,size=1,col="black")+
+  labs(fill="Mean grain-size (um)")+
+  coord_sf()
+
+
+
+#2.B Sorting 
+ggplot()+
+  geom_raster(data=SD,aes(x=X,y=Y,fill=Z))+
+   colorspace::scale_fill_continuous_sequential(palette="Inferno")+
+  geom_sf(data=shape,fill=NA,size=1,col="black")+
+   labs(fill="Sorting")+
+  coord_sf()
+
+
+#2.C Kurtosis
+ggplot()+
+  geom_raster(data=KUR,aes(x=X,y=Y,fill=Z))+
+   colorspace::scale_fill_continuous_sequential(palette="Inferno")+
+  geom_sf(data=shape,fill=NA,size=1,col="black")+
+   labs(fill="Kurtosis")+
+  coord_sf()
+
+
+
+#2.D Skewness
+ggplot()+
+  geom_raster(data=SKW,aes(x=X,y=Y,fill=Z))+
+   colorspace::scale_fill_continuous_sequential(palette="Inferno")+
+  geom_sf(data=shape,fill=NA,size=1,col="black")+
+   labs(fill="Skewness")+
+  coord_sf()
+
+
+```
+
+# Wind direction model
+```{r,message=FALSE,warning=FALSE}
+#3. import
+wind<-read.csv("./import_files/winds.csv")
+wind_raster<-raster::raster("./import_files/WIND.tif") %>%  rasterToPoints(.) %>% as_tibble() %>% dplyr::select(X=x,Y=y,Z=3)
+
+#3.1 Map
+wind %>% st_as_sf(coords=c("x_actual","y_actual"),crs=4326) %>% mapview(.,zcol="reference")
+
+#3.2 Histogram
+wind %>% group_by(wind_group) %>% 
+  mutate(mean=round(mean(angle_graus),digits=2))%>% 
+  ggplot(aes(x=angle_graus, fill=wind_group))+
+  geom_histogram()+
+  geom_vline(aes(xintercept = mean), col = "red") + 
+  geom_text(aes(label = mean),  x = 300, y = 4, vjust = 0)+
+  labs(fill=NULL,x="Wind direction (º)")+
+  facet_wrap(~wind_group)
+
+#3.3 IDW Wind direction map
+ggplot()+
+  geom_raster(data=wind_raster,aes(x=X,y=Y,fill=Z))+
+  colorspace::scale_fill_continuous_sequential(palette="Inferno")+
+  geom_sf(data=shape,fill=NA,size=1,col="black")+
+  geom_point(data=wind,aes(X,Y))+
+  geom_spoke(data=wind,aes(X,Y,angle=-angle_pi),radius=1)+
+  labs(fill="Wind direction (º)")+
+  coord_sf()
+
+
+
+```
+# Provenance model
+```{r,message=FALSE,warning=FALSE}
+# Import
+ages<-provenance::read.distributional("./import_files/ages.csv")
+ages_interpolation<-raster::raster("./import_files/DZ.tif") %>% rasterToPoints(.) %>% as_tibble() %>% dplyr::select(X=x,Y=y,Z=3)
+ages_spatial<-read.csv("./import_files/DZ.csv")
+
+# Map
+ages_spatial %>% st_as_sf(coords=c("long","lat"),crs=4326) %>% mapview(.,zcol="source")
+
+# KDE
+provenance::KDEs(ages) %>% plot(.)
+
+# Spatial interpolation
+ ggplot()+
+  geom_raster(data=ages_interpolation,aes(x=X,y=Y,fill=Z))+
+  colorspace::scale_fill_continuous_sequential(palette="Inferno")+
+  geom_sf(data=shape,fill=NA,size=1,col="black")+
+  labs(fill="MDS dim1 / MDS dim2")+
+  coord_sf()
+ 
+ # MDS
+provenance::MDS(ages)$points %>% 
+  as_tibble(.,rownames = "samples") %>% 
+  ggplot(aes(V1,V2))+
+  geom_text(aes(label=samples))+
+  labs(x="MDS dimension 1",
+       y="MDS dimension 2",
+       title="MDS scalling with Kulmogorov-Sminov distances for detrital zircon ages",
+       caption = paste("stress =",provenance::MDS(ages)$stress))
+
+
+
+```
+
+# Downwind trends
+```{r}
+#Import 
+DOWNWIND <- read.csv("./import_files/downwind.csv")
+# Map
+DOWNWIND %>% st_as_sf(coords=c("Lon","Lat"),crs=4326) %>% mapview(zcol="region")
+
+# Linear model
+DOWNWIND %>% mutate(X=X,Y=Y) %>% 
+  pivot_longer(cols=c(X,Y),names_to = "direction",values_to = "distance") %>%
+  unite(c("region", "direction"),col="grouping",sep="_") %>% 
+  filter(!grouping %in% c("Northeast_X","Northwest_X","South_Y")) %>% 
+  dplyr::select(grouping,distance,gs_mean_mm) %>% 
+  nest(data = c(-grouping)) %>%
+  mutate(fit = map(data, ~ lm(gs_mean_mm ~ distance,data = .x)),  # S3 list-col
+  tidied = map(fit, tidy),
+  glanced = map(fit, glance),
+  augmented = map(fit, augment)) %>% 
+  dplyr::select(grouping,glanced) %>% 
+  unnest(glanced)
+
+#model parameters
+DOWNWIND %>%  pivot_longer(cols=c(X,Y),names_to = "direction",values_to = "distance") %>%
+  unite(c("region", "direction"),col="grouping",sep="_") %>% 
+  filter(!grouping %in% c("Northeast_X","Northwest_X","South_Y")) %>% 
+  dplyr::select(grouping,distance,gs_mean_mm) %>% 
+  nest(data = c(-grouping)) %>%
+  mutate(fit = map(data, ~ lm(gs_mean_mm ~ distance,data = .x)),  
+    tidied = map(fit, tidy),
+    glanced = map(fit, glance),
+    augmented = map(fit, augment)
+  ) %>% 
+  dplyr::select(grouping,tidied) %>% 
+  unnest(tidied)
+
+
+# Plots
+
+DOWNWIND %>%  
+  filter(region=="South") %>% 
+  ggplot(aes(x=X,y=gs_mean_mm))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  labs(x="Paleolongitude (Km)",y="Mean grain-size (mm)",title="South Transect (Downwind towards right)")
+
+DOWNWIND %>%  
+  filter(region %in% c("Northwest","Northeast")) %>% 
+  ggplot(aes(x=Y,y=gs_mean_mm))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  labs(x="Paleolatitude (Km)",y="Mean grain-size (mm)",title="North Transects (Downwind towards left)")+
+  facet_wrap(~region,scales="free")
+  
+
+  
+```
+
